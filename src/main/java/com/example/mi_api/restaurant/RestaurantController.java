@@ -27,44 +27,27 @@ public class RestaurantController {
 
     public RestaurantController(JdbcTemplate jdbc, PasswordEncoder encoder) { this.jdbc = jdbc; this.encoder = encoder; }
 
-@PostMapping("/auth/login")
-Map<String, Object> login(@RequestBody LoginRequest request) {
-    System.out.println(">>> LLEGÓ AL CONTROLLER: " + request.username());
-
-    var users = jdbc.queryForList(
-        "SELECT u.id, u.full_name, u.username, u.password_hash, r.name role " +
-        "FROM users u JOIN roles r ON r.id=u.role_id " +
-        "WHERE u.username=? AND u.active", request.username());
-
-    System.out.println(">>> USUARIOS ENCONTRADOS: " + users.size());
-
-    if (users.isEmpty()) {
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario no encontrado");
+    @PostMapping("/auth/login")
+    Map<String, Object> login(@RequestBody LoginRequest request) {
+        var users = jdbc.queryForList("SELECT u.id, u.full_name, u.username, u.password_hash, r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? AND u.active", request.username());
+        if (users.isEmpty() || !encoder.matches(request.password(), (String) users.getFirst().get("password_hash"))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuario o contraseña incorrectos");
+        }
+        var user = users.getFirst();
+        return Map.of("id", user.get("id"), "fullName", user.get("full_name"), "username", user.get("username"), "role", user.get("role"));
     }
-
-    var user = users.getFirst();
-    String hash = (String) user.get("password_hash");
-    System.out.println(">>> HASH EN BD: " + hash);
-    System.out.println(">>> PASSWORD RECIBIDO: " + request.password());
-    System.out.println(">>> MATCHES: " + encoder.matches(request.password(), hash));
-
-    if (!encoder.matches(request.password(), hash)) {
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Contraseña incorrecta");
-    }
-
-    return Map.of(
-        "id", user.get("id"),
-        "fullName", user.get("full_name"),
-        "username", user.get("username"),
-        "role", user.get("role")
-    );
-}
 
     @GetMapping("/tables")
     List<Map<String, Object>> tables() { return jdbc.queryForList("SELECT id, code, capacity, zone, status, active FROM restaurant_tables WHERE active ORDER BY id"); }
 
     @GetMapping("/products")
     List<Map<String, Object>> products() { return jdbc.queryForList("SELECT p.id, p.name, p.description, p.base_price, p.available, c.name category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.available ORDER BY c.sort_order, p.name"); }
+
+    @GetMapping("/admin/products")
+    List<Map<String, Object>> allProducts() { return jdbc.queryForList("SELECT p.id, p.name, p.description, p.base_price, p.available, c.name category FROM products p JOIN categories c ON c.id=p.category_id ORDER BY c.sort_order, p.name"); }
+
+    @GetMapping("/categories")
+    List<Map<String, Object>> categories() { return jdbc.queryForList("SELECT id, name FROM categories WHERE active ORDER BY sort_order, name"); }
 
     @PostMapping("/products")
     Map<String, Object> createProduct(@RequestBody ProductRequest request) {
@@ -83,6 +66,15 @@ Map<String, Object> login(@RequestBody LoginRequest request) {
     Map<String, Object> createUser(@RequestBody UserRequest request) {
         var id = jdbc.queryForObject("INSERT INTO users(role_id,full_name,username,password_hash) VALUES ((SELECT id FROM roles WHERE name=?),?,?,?) RETURNING id", Long.class, request.role(), request.fullName(), request.username(), encoder.encode(request.password()));
         return Map.of("id", id, "username", request.username());
+    }
+
+    @PatchMapping("/users/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void updateUser(@PathVariable long id, @RequestBody UpdateUserRequest request) {
+        jdbc.update("UPDATE users SET role_id=(SELECT id FROM roles WHERE name=?), full_name=?, username=?, updated_at=NOW() WHERE id=?", request.role(), request.fullName(), request.username(), id);
+        if (request.password() != null && !request.password().isBlank()) {
+            jdbc.update("UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?", encoder.encode(request.password()), id);
+        }
     }
 
     @PatchMapping("/users/{id}/active")
@@ -121,6 +113,7 @@ Map<String, Object> login(@RequestBody LoginRequest request) {
     record LoginRequest(String username, String password) {}
     record ProductRequest(String category, String name, String description, BigDecimal price, Integer prepMinutes, Boolean available) {}
     record UserRequest(String fullName, String username, String password, String role) {}
+    record UpdateUserRequest(String fullName, String username, String password, String role) {}
     record OrderItemRequest(long productId, String productName, BigDecimal price, int quantity, String notes) {}
     record CreateOrderRequest(long tableId, long createdBy, List<OrderItemRequest> items) {}
     record StatusRequest(String status, long userId) {}
