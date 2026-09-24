@@ -45,7 +45,7 @@ public class RestaurantController {
     @GetMapping("/tables/{id}/detail")
     Map<String, Object> tableDetail(@PathVariable long id) {
         var table = jdbc.queryForMap("SELECT id, code, capacity, zone, status, active FROM restaurant_tables WHERE id=?", id);
-        var order = jdbc.queryForMap("SELECT id, code, status, total, customer_name FROM orders WHERE table_id=? AND status NOT IN ('SERVED','CANCELLED') ORDER BY created_at DESC LIMIT 1", id);
+        var order = jdbc.queryForMap("SELECT id, code, status, total, customer_name FROM orders WHERE table_id=? AND status <> 'CANCELLED' ORDER BY created_at DESC LIMIT 1", id);
         var items = jdbc.queryForList("SELECT product_id, product_name, unit_price, quantity, line_total FROM order_items WHERE order_id=? ORDER BY id", order.get("id"));
         order.put("items", items);
         return Map.of("table", table, "order", order);
@@ -111,6 +111,13 @@ public class RestaurantController {
         return status == null ? jdbc.queryForList(sql + " ORDER BY o.created_at DESC") : jdbc.queryForList(sql + " AND o.status=? ORDER BY o.created_at DESC", status);
     }
 
+    @GetMapping("/orders/{id}/detail")
+    Map<String, Object> orderDetail(@PathVariable long id) {
+        var order = jdbc.queryForMap("SELECT o.id,o.code,o.status,o.total,o.customer_name,o.created_at,t.code table_code,u.full_name waiter FROM orders o LEFT JOIN restaurant_tables t ON t.id=o.table_id JOIN users u ON u.id=o.created_by WHERE o.id=?", id);
+        order.put("items", jdbc.queryForList("SELECT product_id, product_name, unit_price, quantity, line_total FROM order_items WHERE order_id=? ORDER BY id", id));
+        return order;
+    }
+
     @PostMapping("/orders/{id}/status")
     Map<String, Object> updateOrderStatus(@PathVariable long id, @RequestBody StatusRequest request) { transition(id, request.status(), request.userId()); return order(id); }
 
@@ -134,10 +141,13 @@ public class RestaurantController {
     }
 
     private Map<String, Object> order(long id) { return jdbc.queryForMap("SELECT id,code,status,total,table_id FROM orders WHERE id=?", id); }
+    @Transactional
     private void transition(long id, String status, long userId) {
         var current = jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class, id);
+        var tableId = jdbc.queryForObject("SELECT table_id FROM orders WHERE id=?", Long.class, id);
         jdbc.update("UPDATE orders SET status=?, confirmed_by=CASE WHEN ?='CONFIRMED' THEN ? ELSE confirmed_by END, confirmed_at=CASE WHEN ?='CONFIRMED' THEN NOW() ELSE confirmed_at END, updated_at=NOW() WHERE id=?", status, status, userId, status, id);
         jdbc.update("INSERT INTO order_status_history(order_id,from_status,to_status,changed_by) VALUES (?,?,?,?)", id, current, status, userId);
+        if ("SERVED".equals(status) && tableId != null) jdbc.update("UPDATE restaurant_tables SET status='FREE' WHERE id=?", tableId);
     }
 
     record LoginRequest(String username, String password) {}
