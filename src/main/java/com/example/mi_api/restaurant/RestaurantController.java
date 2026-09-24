@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,7 +40,16 @@ public class RestaurantController {
     }
 
     @GetMapping("/tables")
-    List<Map<String, Object>> tables() { return jdbc.queryForList("SELECT id, code, capacity, zone, status, active FROM restaurant_tables WHERE active ORDER BY id"); }
+    List<Map<String, Object>> tables() { return jdbc.queryForList("SELECT t.id, t.code, t.capacity, t.zone, t.status, t.active, current_order.customer_name FROM restaurant_tables t LEFT JOIN LATERAL (SELECT o.customer_name FROM orders o WHERE o.table_id=t.id AND o.status NOT IN ('SERVED','CANCELLED') ORDER BY o.created_at DESC LIMIT 1) current_order ON TRUE WHERE t.active ORDER BY t.id"); }
+
+    @GetMapping("/tables/{id}/detail")
+    Map<String, Object> tableDetail(@PathVariable long id) {
+        var table = jdbc.queryForMap("SELECT id, code, capacity, zone, status, active FROM restaurant_tables WHERE id=?", id);
+        var order = jdbc.queryForMap("SELECT id, code, status, total, customer_name FROM orders WHERE table_id=? AND status NOT IN ('SERVED','CANCELLED') ORDER BY created_at DESC LIMIT 1", id);
+        var items = jdbc.queryForList("SELECT product_id, product_name, unit_price, quantity, line_total FROM order_items WHERE order_id=? ORDER BY id", order.get("id"));
+        order.put("items", items);
+        return Map.of("table", table, "order", order);
+    }
 
     @GetMapping("/products")
     List<Map<String, Object>> products() { return jdbc.queryForList("SELECT p.id, p.name, p.description, p.base_price, p.available, c.name category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.available ORDER BY c.sort_order, p.name"); }
@@ -85,7 +96,7 @@ public class RestaurantController {
     Map<String, Object> createOrder(@RequestBody CreateOrderRequest request) {
         var code = "#" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         var total = request.items().stream().map(item -> item.price().multiply(BigDecimal.valueOf(item.quantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
-        var orderId = jdbc.queryForObject("INSERT INTO orders(code,table_id,created_by,subtotal,total) VALUES (?,?,?,?,?) RETURNING id", Long.class, code, request.tableId(), request.createdBy(), total, total);
+        var orderId = jdbc.queryForObject("INSERT INTO orders(code,table_id,created_by,customer_name,subtotal,total) VALUES (?,?,?,?,?,?) RETURNING id", Long.class, code, request.tableId(), request.createdBy(), request.customerName(), total, total);
         for (var item : request.items()) jdbc.update("INSERT INTO order_items(order_id,product_id,product_name,unit_price,quantity,line_total,notes) VALUES (?,?,?,?,?,?,?)", orderId, item.productId(), item.productName(), item.price(), item.quantity(), item.price().multiply(BigDecimal.valueOf(item.quantity())), item.notes());
         jdbc.update("UPDATE restaurant_tables SET status='OCCUPIED' WHERE id=?", request.tableId());
         return Map.of("id", orderId, "code", code, "status", "OPEN", "total", total);
@@ -96,12 +107,31 @@ public class RestaurantController {
 
     @GetMapping("/orders")
     List<Map<String, Object>> orders(@RequestParam(required = false) String status) {
-        var sql = "SELECT o.id,o.code,o.status,o.total,o.created_at,t.code table_code,u.full_name waiter FROM orders o LEFT JOIN restaurant_tables t ON t.id=o.table_id JOIN users u ON u.id=o.created_by WHERE o.status <> 'CANCELLED'";
+        var sql = "SELECT o.id,o.code,o.status,o.total,o.customer_name,o.created_at,t.code table_code,u.full_name waiter FROM orders o LEFT JOIN restaurant_tables t ON t.id=o.table_id JOIN users u ON u.id=o.created_by WHERE o.status <> 'CANCELLED'";
         return status == null ? jdbc.queryForList(sql + " ORDER BY o.created_at DESC") : jdbc.queryForList(sql + " AND o.status=? ORDER BY o.created_at DESC", status);
     }
 
     @PostMapping("/orders/{id}/status")
     Map<String, Object> updateOrderStatus(@PathVariable long id, @RequestBody StatusRequest request) { transition(id, request.status(), request.userId()); return order(id); }
+
+    @PatchMapping("/orders/{id}/items")
+    @Transactional
+    Map<String, Object> updateOrderItems(@PathVariable long id, @RequestBody UpdateOrderItemsRequest request) {
+        var total = request.items().stream().map(item -> item.price().multiply(BigDecimal.valueOf(item.quantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
+        jdbc.update("UPDATE orders SET customer_name=?, subtotal=?, total=?, updated_at=NOW() WHERE id=?", request.customerName(), total, total, id);
+        jdbc.update("DELETE FROM order_items WHERE order_id=?", id);
+        for (var item : request.items()) jdbc.update("INSERT INTO order_items(order_id,product_id,product_name,unit_price,quantity,line_total,notes) VALUES (?,?,?,?,?,?,?)", id, item.productId(), item.productName(), item.price(), item.quantity(), item.price().multiply(BigDecimal.valueOf(item.quantity())), item.notes());
+        return order(id);
+    }
+
+    @DeleteMapping("/orders/{id}")
+    @Transactional
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteOrder(@PathVariable long id) {
+        var tableId = jdbc.queryForObject("SELECT table_id FROM orders WHERE id=?", Long.class, id);
+        jdbc.update("DELETE FROM orders WHERE id=?", id);
+        if (tableId != null) jdbc.update("UPDATE restaurant_tables SET status='FREE' WHERE id=?", tableId);
+    }
 
     private Map<String, Object> order(long id) { return jdbc.queryForMap("SELECT id,code,status,total,table_id FROM orders WHERE id=?", id); }
     private void transition(long id, String status, long userId) {
@@ -115,6 +145,7 @@ public class RestaurantController {
     record UserRequest(String fullName, String username, String password, String role) {}
     record UpdateUserRequest(String fullName, String username, String password, String role) {}
     record OrderItemRequest(long productId, String productName, BigDecimal price, int quantity, String notes) {}
-    record CreateOrderRequest(long tableId, long createdBy, List<OrderItemRequest> items) {}
+    record CreateOrderRequest(long tableId, long createdBy, String customerName, List<OrderItemRequest> items) {}
+    record UpdateOrderItemsRequest(String customerName, List<OrderItemRequest> items) {}
     record StatusRequest(String status, long userId) {}
 }
