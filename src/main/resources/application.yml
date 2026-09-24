@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: restaurant-ops
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate          # ⚠️ Flyway owns the schema, JPA only validates
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true     # útil si ya tienes una BD con datos
+    locations: classpath:db/migration
+    schemas: public
+    validate-on-migrate: true
+
+  web:
+    cors:
+      allowed-origins: ${FRONTEND_URL:http://localhost:5173}
+
+logging:
+  level:
+    org.flywaydb: INFO
