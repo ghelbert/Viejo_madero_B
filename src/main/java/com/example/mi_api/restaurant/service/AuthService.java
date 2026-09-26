@@ -37,6 +37,12 @@ public class AuthService {
         }
 
         var user = users.getFirst();
+        if (Boolean.FALSE.equals(user.get("active"))) {
+            logger.warn("Login failed: account is disabled");
+            throw new InvalidCredentialsException(
+                "Tu cuenta está deshabilitada. Contacta al administrador para conocer el motivo.");
+        }
+
         logger.info("Login successful");
         return Map.of(
                 "id", user.get("id"),

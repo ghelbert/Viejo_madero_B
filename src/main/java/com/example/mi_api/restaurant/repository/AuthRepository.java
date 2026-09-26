@@ -16,9 +16,9 @@ public class AuthRepository {
 
     public List<Map<String, Object>> findByUsername(String username) {
         return jdbc.queryForList(
-                "SELECT u.id, u.full_name, u.username, u.password_hash, r.name role "
+            "SELECT u.id, u.full_name, u.username, u.password_hash, u.active, r.name role "
                         + "FROM users u JOIN roles r ON r.id=u.role_id "
-                        + "WHERE u.username=? AND u.active",
+                + "WHERE u.username=?",
                 username);
     }
 }
