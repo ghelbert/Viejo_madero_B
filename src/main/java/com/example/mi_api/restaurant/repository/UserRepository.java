@@ -1,11 +1,13 @@
 package com.example.mi_api.restaurant.repository;
 
-import com.example.mi_api.restaurant.dto.user.UpdateUserRequest;
-import com.example.mi_api.restaurant.dto.user.UserRequest;
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+
+import com.example.mi_api.restaurant.dto.user.UpdateUserRequest;
+import com.example.mi_api.restaurant.dto.user.UserRequest;
 
 @Repository
 public class UserRepository {
@@ -20,6 +22,23 @@ public class UserRepository {
         return jdbc.queryForList(
                 "SELECT u.id, u.full_name, u.username, u.active, r.name role "
                         + "FROM users u JOIN roles r ON r.id=u.role_id ORDER BY u.full_name");
+    }
+
+    public boolean existsByUsername(String username) {
+        return Boolean.TRUE.equals(
+                jdbc.queryForObject(
+                        "SELECT EXISTS (SELECT 1 FROM users WHERE username=?)",
+                        Boolean.class,
+                        username));
+    }
+
+    public boolean existsByUsernameForAnotherUser(String username, long userId) {
+        return Boolean.TRUE.equals(
+                jdbc.queryForObject(
+                        "SELECT EXISTS (SELECT 1 FROM users WHERE username=? AND id<>?)",
+                        Boolean.class,
+                        username,
+                        userId));
     }
 
     public Long create(UserRequest request, String passwordHash) {
