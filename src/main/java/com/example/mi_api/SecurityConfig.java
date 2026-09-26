@@ -29,7 +29,7 @@ public class SecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:5173", "http://localhost:4173","https://ghelbert.github.io/Viejo_madero_F/")
+                        .allowedOrigins("http://localhost:5173", "http://localhost:4173","https://ghelbert.github.io")
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
             }
         };
