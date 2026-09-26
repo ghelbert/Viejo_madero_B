@@ -1,19 +1,10 @@
 package com.example.mi_api.restaurant.controller;
 
-import com.example.mi_api.restaurant.dto.auth.LoginRequest;
-import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
-import com.example.mi_api.restaurant.dto.order.StatusRequest;
-import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
-import com.example.mi_api.restaurant.dto.product.ProductRequest;
-import com.example.mi_api.restaurant.dto.user.UpdateUserRequest;
-import com.example.mi_api.restaurant.dto.user.UserRequest;
-import com.example.mi_api.restaurant.service.AuthService;
-import com.example.mi_api.restaurant.service.OrderService;
-import com.example.mi_api.restaurant.service.ProductService;
-import com.example.mi_api.restaurant.service.TableService;
-import com.example.mi_api.restaurant.service.UserService;
 import java.util.List;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,9 +17,24 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.mi_api.restaurant.dto.auth.LoginRequest;
+import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
+import com.example.mi_api.restaurant.dto.order.StatusRequest;
+import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
+import com.example.mi_api.restaurant.dto.product.ProductRequest;
+import com.example.mi_api.restaurant.dto.user.UpdateUserRequest;
+import com.example.mi_api.restaurant.dto.user.UserRequest;
+import com.example.mi_api.restaurant.service.AuthService;
+import com.example.mi_api.restaurant.service.OrderService;
+import com.example.mi_api.restaurant.service.ProductService;
+import com.example.mi_api.restaurant.service.TableService;
+import com.example.mi_api.restaurant.service.UserService;
+
 @RestController
 @RequestMapping("/api")
 public class RestaurantController {
+
+    private static final Logger logger = LoggerFactory.getLogger(RestaurantController.class);
 
     private final AuthService authService;
     private final TableService tableService;
@@ -51,6 +57,7 @@ public class RestaurantController {
 
     @PostMapping("/auth/login")
     public Map<String, Object> login(@RequestBody LoginRequest request) {
+        logger.info("Login request received");
         return authService.login(request);
     }
 
