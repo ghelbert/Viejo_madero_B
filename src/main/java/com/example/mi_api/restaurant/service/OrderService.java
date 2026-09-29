@@ -1,15 +1,17 @@
 package com.example.mi_api.restaurant.service;
 
-import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
-import com.example.mi_api.restaurant.dto.order.StatusRequest;
-import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
-import com.example.mi_api.restaurant.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
+import com.example.mi_api.restaurant.dto.order.StatusRequest;
+import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
+import com.example.mi_api.restaurant.repository.OrderRepository;
 
 @Service
 public class OrderService {
@@ -84,7 +86,7 @@ public class OrderService {
         orderRepository.insertStatusHistory(id, current, status, userId);
 
         if ("SERVED".equals(status) && tableId != null) {
-            orderRepository.markTableFree(tableId);
+            orderRepository.markTableAttended(tableId);
         }
     }
 

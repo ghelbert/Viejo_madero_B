@@ -1,11 +1,13 @@
 package com.example.mi_api.restaurant.repository;
 
-import com.example.mi_api.restaurant.dto.order.OrderItemRequest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+
+import com.example.mi_api.restaurant.dto.order.OrderItemRequest;
 
 @Repository
 public class OrderRepository {
@@ -51,6 +53,10 @@ public class OrderRepository {
 
     public void markTableOccupied(long tableId) {
         jdbc.update("UPDATE restaurant_tables SET status='OCCUPIED' WHERE id=?", tableId);
+    }
+
+    public void markTableAttended(long tableId) {
+        jdbc.update("UPDATE restaurant_tables SET status='ATTENDED' WHERE id=?", tableId);
     }
 
     public List<Map<String, Object>> findAll(String status) {

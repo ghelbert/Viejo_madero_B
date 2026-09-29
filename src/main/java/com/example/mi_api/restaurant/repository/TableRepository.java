@@ -2,6 +2,7 @@ package com.example.mi_api.restaurant.repository;
 
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -20,7 +21,8 @@ public class TableRepository {
                         + "current_order.customer_name "
                         + "FROM restaurant_tables t "
                         + "LEFT JOIN LATERAL (SELECT o.customer_name FROM orders o "
-                        + "WHERE o.table_id=t.id AND o.status NOT IN ('SERVED','CANCELLED') "
+                        + "WHERE o.table_id=t.id AND o.status <> 'CANCELLED' "
+                        + "AND (o.status <> 'SERVED' OR t.status='ATTENDED') "
                         + "ORDER BY o.created_at DESC LIMIT 1) current_order ON TRUE "
                         + "WHERE t.active ORDER BY t.id");
     }
