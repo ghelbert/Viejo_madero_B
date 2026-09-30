@@ -12,14 +12,19 @@ import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
 import com.example.mi_api.restaurant.dto.order.StatusRequest;
 import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
 import com.example.mi_api.restaurant.repository.OrderRepository;
+import com.example.mi_api.restaurant.websocket.OrderUpdatesWebSocketHandler;
 
 @Service
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderUpdatesWebSocketHandler orderUpdates;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(
+            OrderRepository orderRepository,
+            OrderUpdatesWebSocketHandler orderUpdates) {
         this.orderRepository = orderRepository;
+        this.orderUpdates = orderUpdates;
     }
 
     @Transactional
@@ -36,6 +41,7 @@ public class OrderService {
 
         orderRepository.insertItems(orderId, request.items());
         orderRepository.markTableOccupied(request.tableId());
+        orderUpdates.publishAfterCommit();
 
         return Map.of("id", orderId, "code", code, "status", "OPEN", "total", total);
     }
@@ -43,6 +49,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> confirm(long id, long userId) {
         transition(id, "CONFIRMED", userId);
+        orderUpdates.publishAfterCommit();
         return orderRepository.findSummary(id);
     }
 
@@ -57,6 +64,7 @@ public class OrderService {
     @Transactional
     public Map<String, Object> updateStatus(long id, StatusRequest request) {
         transition(id, request.status(), request.userId());
+        orderUpdates.publishAfterCommit();
         return orderRepository.findSummary(id);
     }
 
@@ -65,6 +73,7 @@ public class OrderService {
         var total = calculateTotal(request.items());
         orderRepository.updateHeader(id, request.customerName(), total);
         orderRepository.replaceItems(id, request.items());
+        orderUpdates.publishAfterCommit();
         return orderRepository.findSummary(id);
     }
 
@@ -76,6 +85,7 @@ public class OrderService {
         if (tableId != null) {
             orderRepository.markTableFree(tableId);
         }
+        orderUpdates.publishAfterCommit();
     }
 
     private void transition(long id, String status, long userId) {
