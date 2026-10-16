@@ -20,7 +20,7 @@ public class UserRepository {
 
     public List<Map<String, Object>> findAll() {
         return jdbc.queryForList(
-                "SELECT u.id, u.full_name, u.username, u.active, r.name role "
+                "SELECT u.id, u.full_name, u.username, u.dni, u.phone, u.active, r.name role "
                         + "FROM users u JOIN roles r ON r.id=u.role_id ORDER BY u.full_name");
     }
 
@@ -43,22 +43,33 @@ public class UserRepository {
 
     public Long create(UserRequest request, String passwordHash) {
         return jdbc.queryForObject(
-                "INSERT INTO users(role_id,full_name,username,password_hash) "
-                        + "VALUES ((SELECT id FROM roles WHERE name=?),?,?,?) RETURNING id",
+                "INSERT INTO users(role_id,full_name,username,password_hash,dni,phone,active) "
+                        + "VALUES ((SELECT id FROM roles WHERE name=?),?,?,?,?,?,COALESCE(?,TRUE)) RETURNING id",
                 Long.class,
                 request.role(),
                 request.fullName(),
                 request.username(),
-                passwordHash);
+                passwordHash,
+                request.dni(),
+                request.phone(),
+                request.active());
     }
 
     public void update(long id, UpdateUserRequest request) {
         jdbc.update(
                 "UPDATE users SET role_id=(SELECT id FROM roles WHERE name=?), "
-                        + "full_name=?, username=?, updated_at=NOW() WHERE id=?",
+                        + "full_name=?, username=?, "
+                        + "dni=CASE WHEN ? IS NULL THEN dni ELSE NULLIF(?, '') END, "
+                        + "phone=CASE WHEN ? IS NULL THEN phone ELSE NULLIF(?, '') END, "
+                        + "active=COALESCE(?,active), updated_at=NOW() WHERE id=?",
                 request.role(),
                 request.fullName(),
                 request.username(),
+                request.dni(),
+                request.dni(),
+                request.phone(),
+                request.phone(),
+                request.active(),
                 id);
     }
 

@@ -3,6 +3,7 @@ package com.example.mi_api.restaurant.controller;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -105,13 +106,13 @@ public class RestaurantController {
     }
 
     @PostMapping("/users")
-    public Map<String, Object> createUser(@RequestBody UserRequest request) {
+    public Map<String, Object> createUser(@Valid @RequestBody UserRequest request) {
         return userService.create(request);
     }
 
     @PatchMapping("/users/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateUser(@PathVariable long id, @RequestBody UpdateUserRequest request) {
+    public void updateUser(@PathVariable long id, @Valid @RequestBody UpdateUserRequest request) {
         userService.update(id, request);
     }
 
