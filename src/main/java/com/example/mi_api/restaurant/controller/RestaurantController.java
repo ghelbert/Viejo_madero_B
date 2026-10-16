@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.mi_api.restaurant.dto.auth.LoginRequest;
+import com.example.mi_api.restaurant.dto.order.CompleteDeliveryRequest;
+import com.example.mi_api.restaurant.dto.order.CreateDeliveryOrderRequest;
 import com.example.mi_api.restaurant.dto.order.CreateOrderRequest;
 import com.example.mi_api.restaurant.dto.order.StatusRequest;
 import com.example.mi_api.restaurant.dto.order.UpdateOrderItemsRequest;
@@ -130,8 +132,46 @@ public class RestaurantController {
     }
 
     @GetMapping("/orders")
-    public List<Map<String, Object>> orders(@RequestParam(required = false) String status) {
-        return orderService.findAll(status);
+    public List<Map<String, Object>> orders(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String orderType) {
+        return orderService.findAll(status, orderType);
+    }
+
+    @PostMapping("/delivery-orders")
+    public Map<String, Object> createDeliveryOrder(@RequestBody CreateDeliveryOrderRequest request) {
+        return orderService.createDelivery(request);
+    }
+
+    @GetMapping("/delivery-orders")
+    public List<Map<String, Object>> deliveryOrders() {
+        return orderService.findAll(null, null).stream()
+                .filter(order -> !"DINE_IN".equals(order.get("order_type")))
+                .toList();
+    }
+
+    @GetMapping("/delivery-orders/dispatch")
+    public List<Map<String, Object>> deliveryDispatch() {
+        return orderService.findDeliveryDispatch();
+    }
+
+    @GetMapping("/delivery-orders/history")
+    public List<Map<String, Object>> deliveryHistory() {
+        return orderService.findDeliveryHistory();
+    }
+
+    @PostMapping("/orders/{id}/route")
+    public Map<String, Object> startDeliveryRoute(
+            @PathVariable long id,
+            @RequestParam long userId) {
+        return orderService.startDeliveryRoute(id, userId);
+    }
+
+    @PostMapping("/orders/{id}/delivery")
+    public Map<String, Object> completeDelivery(
+            @PathVariable long id,
+            @RequestBody CompleteDeliveryRequest request) {
+        return orderService.completeDelivery(id, request);
     }
 
     @GetMapping("/orders/{id}/detail")
